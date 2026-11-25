@@ -3,61 +3,72 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
+from schemas import DecisionAnalysis
+
 load_dotenv()
 
-# 1. Initialize the language model
+# 1. Initialize the model
 llm = ChatOpenAI(
-    model="gpt-6-luna",
+    model="gpt-6-luna"
 )
 
-# 2. Define the decision analysis prompt
-# This template gives the model its role and instructions, then inserts the
-# user's decision into a separate message. The system instructions ask it to
-# summarize the decision across six categories, avoid making up details, and
-# call out unknowns; the final line asks for a concise, beginner-friendly reply.
+# 2. Connect the model with our Pydantic schema
+structured_llm = llm.with_structured_output(
+    DecisionAnalysis
+)
+
+# 3. Create the prompt
 prompt = ChatPromptTemplate.from_messages([
     (
         "system",
         """
-        You are DecisionPilot, an AI decision analysis assistant.
+        You are DecisionPilot, an AI decision analyst.
 
-        Your job is to understand a user's decision
-        and break it down clearly.
+        Analyze the user's decision.
 
-        Analyze the user's request and identify:
+        Extract:
+        - Decision name
+        - Objective
+        - Budget
+        - Requirements
+        - Preferences
+        - Constraints
+        - Missing information
 
-        1. Decision objective
-        2. Budget or constraints
-        3. Main requirements
-        4. Important preferences
-        5. Potential challenges
-        6. Information that may be missing
-
-        Do not invent facts.
-        If information is missing, mention it.
-
-        Keep your response concise and beginner-friendly.
+        Do not invent details.
+        If information is not provided, use
+        'Not specified' for budget and an empty
+        list for other missing list fields.
         """
     ),
     (
         "human",
-        "Analyze this decision:\n{decision}"
+        "{user_decision}"
     )
 ])
 
-# 3. Connect the prompt and model
-decision_chain = prompt | llm
+# 4. Build the chain
+decision_chain = prompt | structured_llm
 
-# 4. Get input from the user
+# 5. Get user input
 user_decision = input(
-    "What decision do you want help with?\n> "
+    "Enter your decision:\n> "
 )
 
-# 5. Execute the chain
-response = decision_chain.invoke({
-    "decision": user_decision
+# 6. Invoke the chain
+result = decision_chain.invoke({
+    "user_decision": user_decision
 })
 
-# 6. Display the result
-print("\n===== DECISIONPILOT ANALYSIS =====\n")
-print(response.content)
+# 7. Display structured output
+print("\n===== DECISIONPILOT RESULT =====")
+
+print(result.model_dump_json(indent=2))
+
+
+print(type(result))
+print(result.objective)
+print(result.requirements)
+print(result.budget)
+print(result.decision)
+print(result.missing_information)
